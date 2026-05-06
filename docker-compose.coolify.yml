@@ -120,48 +120,6 @@ services:
       REDDIT_CLIENT_ID: "${REDDIT_CLIENT_ID:-}"
       REDDIT_CLIENT_SECRET: "${REDDIT_CLIENT_SECRET:-}"
       REDDIT_USER_AGENT: "${REDDIT_USER_AGENT:-TradingAgents-CN/1.0}"
-    depends_on:
-      admin-init:
-        condition: service_completed_successfully
-      mongodb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - tradingagents-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  admin-init:
-    image: hsliup/tradingagents-backend:v1.0.0-preview
-    restart: "no"
-    environment:
-      TZ: "${TZ:-Asia/Shanghai}"
-      DEBUG: "${DEBUG:-false}"
-      MONGODB_HOST: "mongodb"
-      MONGODB_PORT: "27017"
-      MONGODB_USERNAME: "${MONGODB_USERNAME:-admin}"
-      MONGODB_PASSWORD: "${MONGODB_PASSWORD:-tradingagents123}"
-      MONGODB_DATABASE: "${MONGODB_DATABASE:-tradingagentscn}"
-      MONGODB_DATABASE_NAME: "${MONGODB_DATABASE:-tradingagentscn}"
-      MONGO_DB: "${MONGODB_DATABASE:-tradingagentscn}"
-      MONGODB_DATABASE_SCOPE: "${MONGODB_DATABASE_SCOPE:-explicit}"
-      MONGODB_AUTH_SOURCE: "${MONGODB_AUTH_SOURCE:-admin}"
-      MONGODB_URL: "mongodb://${MONGODB_USERNAME:-admin}:${MONGODB_PASSWORD:-tradingagents123}@mongodb:27017/${MONGODB_DATABASE:-tradingagentscn}?authSource=${MONGODB_AUTH_SOURCE:-admin}"
-      MONGODB_CONNECTION_STRING: "mongodb://${MONGODB_USERNAME:-admin}:${MONGODB_PASSWORD:-tradingagents123}@mongodb:27017/${MONGODB_DATABASE:-tradingagentscn}?authSource=${MONGODB_AUTH_SOURCE:-admin}"
-      REDIS_HOST: "redis"
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: "${REDIS_PASSWORD:-tradingagents123}"
-      REDIS_URL: "redis://:${REDIS_PASSWORD:-tradingagents123}@redis:6379/0"
-      DOCKER_CONTAINER: "true"
-      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
-      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin123}"
-      ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@tradingagents.cn}"
-      ADMIN_RESET_PASSWORD_ON_DEPLOY: "${ADMIN_RESET_PASSWORD_ON_DEPLOY:-false}"
     command:
       - /bin/sh
       - -c
@@ -226,6 +184,7 @@ services:
             print(f"Admin init failed: {exc}", file=sys.stderr)
             raise
         PY
+        exec python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
     depends_on:
       mongodb:
         condition: service_healthy
@@ -233,6 +192,12 @@ services:
         condition: service_healthy
     networks:
       - tradingagents-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   frontend:
     image: hsliup/tradingagents-frontend:v1.0.0-preview
