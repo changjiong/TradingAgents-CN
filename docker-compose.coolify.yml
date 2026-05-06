@@ -46,7 +46,10 @@ services:
       start_period: 5s
 
   backend:
-    image: hsliup/tradingagents-backend:v1.0.0-preview
+    build:
+      context: .
+      dockerfile: Dockerfile.coolify-backend-hotfix
+    image: tradingagents-backend:coolify-hotfix
     restart: unless-stopped
     expose:
       - "8000"

@@ -1,0 +1,33 @@
+FROM hsliup/tradingagents-backend:v1.0.0-preview
+
+RUN python - <<'PY'
+from pathlib import Path
+
+path = Path("/app/app/services/config_service.py")
+text = path.read_text()
+start = text.index("    def _test_deepseek_api(")
+end = text.index("    def _test_dashscope_api(", start)
+block = text[start:end]
+
+old_payload = '''                "max_tokens": 50,
+                "temperature": 0.1
+            }'''
+new_payload = '''                "max_tokens": 50,
+                "temperature": 0.1,
+                "thinking": {"type": "disabled"}
+            }'''
+if old_payload not in block:
+    raise RuntimeError("DeepSeek test payload pattern not found")
+block = block.replace(old_payload, new_payload, 1)
+
+old_content = '                    content = result["choices"][0]["message"]["content"]'
+new_content = '''                    message = result["choices"][0].get("message", {})
+                    content = message.get("content") or message.get("reasoning_content")'''
+if old_content not in block:
+    raise RuntimeError("DeepSeek content extraction pattern not found")
+block = block.replace(old_content, new_content, 1)
+
+path.write_text(text[:start] + block + text[end:])
+PY
+
+RUN python -m py_compile /app/app/services/config_service.py
