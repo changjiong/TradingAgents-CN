@@ -199,12 +199,6 @@ services:
         condition: service_healthy
     networks:
       - tradingagents-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
   frontend:
     image: hsliup/tradingagents-frontend:v1.0.0-preview
@@ -218,12 +212,6 @@ services:
       - backend
     networks:
       - tradingagents-network
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   nginx:
     image: nginx:alpine
@@ -281,12 +269,6 @@ services:
       - backend
     networks:
       - tradingagents-network
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/health | grep -q healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
 
 volumes:
   tradingagents_mongodb_data:
