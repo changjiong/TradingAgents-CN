@@ -3630,7 +3630,8 @@ class ConfigService:
                     {"role": "user", "content": "你好，请简单介绍一下你自己。"}
                 ],
                 "max_tokens": 50,
-                "temperature": 0.1
+                "temperature": 0.1,
+                "thinking": {"type": "disabled"}
             }
 
             response = requests.post(url, json=data, headers=headers, timeout=10)
@@ -3638,7 +3639,8 @@ class ConfigService:
             if response.status_code == 200:
                 result = response.json()
                 if "choices" in result and len(result["choices"]) > 0:
-                    content = result["choices"][0]["message"]["content"]
+                    message = result["choices"][0].get("message", {})
+                    content = message.get("content") or message.get("reasoning_content")
                     if content and len(content.strip()) > 0:
                         return {
                             "success": True,
