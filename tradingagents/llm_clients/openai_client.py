@@ -72,6 +72,9 @@ class OpenAIClient(BaseLLMClient):
             if key in self.kwargs:
                 llm_kwargs[key] = self.kwargs[key]
 
+        if self.provider == "deepseek":
+            llm_kwargs.setdefault("extra_body", {"thinking": {"type": "disabled"}})
+
         return NormalizedChatOpenAI(**llm_kwargs)
 
     def validate_model(self) -> bool:

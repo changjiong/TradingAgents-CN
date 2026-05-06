@@ -96,3 +96,66 @@ path.write_text(text)
 PY
 
 RUN python -m py_compile /app/app/services/simple_analysis_service.py
+
+RUN python - <<'PY'
+from pathlib import Path
+
+candidate_paths = [
+    Path("/app/tradingagents/llm_clients/openai_client.py"),
+    Path("/app/tradingagents/llm_adapters/deepseek_adapter.py"),
+]
+patched = False
+
+llm_client_path = candidate_paths[0]
+if llm_client_path.exists():
+    text = llm_client_path.read_text()
+    needle = '''        for key in _PASSTHROUGH_KWARGS:
+            if key in self.kwargs:
+                llm_kwargs[key] = self.kwargs[key]
+
+        return NormalizedChatOpenAI(**llm_kwargs)
+'''
+    replacement = '''        for key in _PASSTHROUGH_KWARGS:
+            if key in self.kwargs:
+                llm_kwargs[key] = self.kwargs[key]
+
+        if self.provider == "deepseek":
+            llm_kwargs.setdefault("extra_body", {"thinking": {"type": "disabled"}})
+
+        return NormalizedChatOpenAI(**llm_kwargs)
+'''
+    if replacement not in text:
+        if needle not in text:
+            raise RuntimeError("OpenAI client insertion point not found")
+        text = text.replace(needle, replacement, 1)
+        llm_client_path.write_text(text)
+    patched = True
+
+deepseek_adapter_path = candidate_paths[1]
+if deepseek_adapter_path.exists():
+    text = deepseek_adapter_path.read_text()
+    needle = '''            temperature=temperature,
+            max_tokens=max_tokens,
+            **kwargs
+        )
+'''
+    replacement = '''            temperature=temperature,
+            max_tokens=max_tokens,
+            extra_body={"thinking": {"type": "disabled"}},
+            **kwargs
+        )
+'''
+    if replacement not in text:
+        if needle not in text:
+            raise RuntimeError("DeepSeek adapter insertion point not found")
+        text = text.replace(needle, replacement, 1)
+        deepseek_adapter_path.write_text(text)
+    patched = True
+
+if not patched:
+    raise RuntimeError("No DeepSeek LLM client path found")
+PY
+
+RUN python -m py_compile \
+    $(test -f /app/tradingagents/llm_clients/openai_client.py && echo /app/tradingagents/llm_clients/openai_client.py) \
+    $(test -f /app/tradingagents/llm_adapters/deepseek_adapter.py && echo /app/tradingagents/llm_adapters/deepseek_adapter.py)
