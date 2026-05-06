@@ -191,9 +191,10 @@ services:
             }
 
             if existing:
-                update_doc = {"$$set": admin_fields}
+                set_key = chr(36) + "set"
+                update_doc = {set_key: admin_fields}
                 if reset_on_deploy or not existing.get("hashed_password"):
-                    update_doc["$$set"]["hashed_password"] = user_service.hash_password(password)
+                    update_doc[set_key]["hashed_password"] = user_service.hash_password(password)
                 result = user_service.users_collection.update_one({"username": username}, update_doc)
                 if result.matched_count != 1:
                     raise RuntimeError("failed to update admin user")
