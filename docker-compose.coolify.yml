@@ -31,11 +31,15 @@ services:
       - tradingagents_redis_data:/data
     environment:
       TZ: "${TZ:-Asia/Shanghai}"
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-tradingagents123}
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-tradingagents123}"
+    command:
+      - /bin/sh
+      - -c
+      - exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"
     networks:
       - tradingagents-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-tradingagents123}", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
