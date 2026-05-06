@@ -42,7 +42,7 @@ services:
       start_period: 5s
 
   backend:
-    image: hsliup/tradingagents-backend:v1.0.1
+    image: hsliup/tradingagents-backend:v1.0.0-preview
     restart: unless-stopped
     expose:
       - "8000"
@@ -131,7 +131,7 @@ services:
       start_period: 40s
 
   frontend:
-    image: hsliup/tradingagents-frontend:v1.0.1
+    image: hsliup/tradingagents-frontend:v1.0.0-preview
     restart: unless-stopped
     expose:
       - "80"
