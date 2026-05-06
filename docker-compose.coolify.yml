@@ -129,21 +129,6 @@ services:
       - -c
       - |
         python - <<'PY'
-        from pathlib import Path
-
-        path = Path("/app/app/services/config_service.py")
-        text = path.read_text()
-        text = text.replace(
-            '"temperature": 0.1\n            }',
-            '"temperature": 0.1,\n                "thinking": {"type": "disabled"}\n            }',
-        )
-        text = text.replace(
-            'content = result["choices"][0]["message"]["content"]',
-            'message = result["choices"][0].get("message", {})\n                    content = message.get("content") or message.get("reasoning_content")',
-        )
-        path.write_text(text)
-        PY
-        python - <<'PY'
         import asyncio
         import os
         import sys
