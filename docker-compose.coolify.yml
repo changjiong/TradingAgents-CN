@@ -206,11 +206,11 @@ services:
     networks:
       - tradingagents-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/health | grep -q healthy"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 30s
 
 volumes:
   tradingagents_mongodb_data:
