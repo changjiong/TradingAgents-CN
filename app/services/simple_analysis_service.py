@@ -6,6 +6,7 @@
 import asyncio
 import uuid
 import logging
+import re
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from pathlib import Path
@@ -48,6 +49,20 @@ logger = logging.getLogger("app.services.simple_analysis_service")
 
 # 配置服务实例
 config_service = ConfigService()
+
+
+def _sanitize_analysis_error(error: Exception) -> str:
+    """Return diagnostic error text without leaking API keys or bearer tokens."""
+    message = f"{type(error).__name__}: {str(error)}"
+    patterns = [
+        (r"sk-[A-Za-z0-9_\-]{8,}", "sk-***"),
+        (r"(Bearer\s+)[A-Za-z0-9._\-]+", r"\1***"),
+        (r"(?i)(api[_-]?key['\"\s:=]+)[^,'\"\s]+", r"\1***"),
+        (r"(?i)(authorization['\"\s:=]+)[^,'\"\s]+", r"\1***"),
+    ]
+    for pattern, replacement in patterns:
+        message = re.sub(pattern, replacement, message)
+    return message[:2000]
 
 
 async def get_provider_by_model_name(model_name: str) -> str:
@@ -987,7 +1002,7 @@ class SimpleAnalysisService:
             logger.info(f"✅ 后台分析任务完成: {task_id}")
 
         except Exception as e:
-            logger.error(f"❌ 后台分析任务失败: {task_id} - {e}")
+            logger.error(f"❌ 后台分析任务失败: {task_id} - {e}", exc_info=True)
 
             # 格式化错误信息为用户友好的提示
             from ..utils.error_formatter import ErrorFormatter
@@ -1008,6 +1023,11 @@ class SimpleAnalysisService:
                 f"{formatted_error['title']}\n\n"
                 f"{formatted_error['message']}\n\n"
                 f"💡 {formatted_error['suggestion']}"
+            )
+            diagnostic_error = _sanitize_analysis_error(e)
+            user_friendly_error = (
+                f"{user_friendly_error}\n\n"
+                f"🔎 技术细节（已脱敏）:\n{diagnostic_error}"
             )
 
             # 标记进度跟踪器失败
@@ -1794,7 +1814,7 @@ class SimpleAnalysisService:
             return result
 
         except Exception as e:
-            logger.error(f"❌ [线程池] 分析执行失败: {task_id} - {e}")
+            logger.error(f"❌ [线程池] 分析执行失败: {task_id} - {e}", exc_info=True)
 
             # 格式化错误信息为用户友好的提示
             from ..utils.error_formatter import ErrorFormatter
@@ -1815,6 +1835,11 @@ class SimpleAnalysisService:
                 f"{formatted_error['title']}\n\n"
                 f"{formatted_error['message']}\n\n"
                 f"💡 {formatted_error['suggestion']}"
+            )
+            diagnostic_error = _sanitize_analysis_error(e)
+            user_friendly_error = (
+                f"{user_friendly_error}\n\n"
+                f"🔎 技术细节（已脱敏）:\n{diagnostic_error}"
             )
 
             # 抛出包含友好错误信息的异常
