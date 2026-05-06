@@ -1,0 +1,183 @@
+# Coolify deployment profile for TradingAgents-CN.
+# Public traffic is handled by Coolify's Traefik proxy and routed to the nginx
+# service below. Do not bind host ports in this file.
+# Environment variables referenced here are intended to be edited from the
+# Coolify application's Environment Variables screen.
+
+services:
+  mongodb:
+    image: mongo:4.4
+    restart: unless-stopped
+    volumes:
+      - tradingagents_mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "${MONGODB_USERNAME:-admin}"
+      MONGO_INITDB_ROOT_PASSWORD: "${MONGODB_PASSWORD:-tradingagents123}"
+      MONGO_INITDB_DATABASE: "${MONGODB_DATABASE:-tradingagentscn}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    networks:
+      - tradingagents-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - tradingagents_redis_data:/data
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-tradingagents123}
+    networks:
+      - tradingagents-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-tradingagents123}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  backend:
+    image: hsliup/tradingagents-backend:v1.0.1
+    restart: unless-stopped
+    expose:
+      - "8000"
+    volumes:
+      - tradingagents_logs:/app/logs
+      - tradingagents_data:/app/data
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      TRADINGAGENTS_LOG_LEVEL: "${TRADINGAGENTS_LOG_LEVEL:-INFO}"
+      TRADINGAGENTS_LOG_DIR: "/app/logs"
+      TRADINGAGENTS_LOG_FILE: "/app/logs/tradingagents.log"
+      MONGODB_HOST: "mongodb"
+      MONGODB_PORT: "27017"
+      MONGODB_USERNAME: "${MONGODB_USERNAME:-admin}"
+      MONGODB_PASSWORD: "${MONGODB_PASSWORD:-tradingagents123}"
+      MONGODB_DATABASE: "${MONGODB_DATABASE:-tradingagentscn}"
+      MONGODB_AUTH_SOURCE: "${MONGODB_AUTH_SOURCE:-admin}"
+      MONGODB_URL: "mongodb://${MONGODB_USERNAME:-admin}:${MONGODB_PASSWORD:-tradingagents123}@mongodb:27017/${MONGODB_DATABASE:-tradingagentscn}?authSource=${MONGODB_AUTH_SOURCE:-admin}"
+      MONGODB_CONNECTION_STRING: "mongodb://${MONGODB_USERNAME:-admin}:${MONGODB_PASSWORD:-tradingagents123}@mongodb:27017/${MONGODB_DATABASE:-tradingagentscn}?authSource=${MONGODB_AUTH_SOURCE:-admin}"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-tradingagents123}"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-tradingagents123}@redis:6379/0"
+      DOCKER_CONTAINER: "true"
+      JWT_SECRET: "${JWT_SECRET:-change-this-jwt-secret-in-coolify}"
+      JWT_ALGORITHM: "${JWT_ALGORITHM:-HS256}"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "${ACCESS_TOKEN_EXPIRE_MINUTES:-480}"
+      REFRESH_TOKEN_EXPIRE_DAYS: "${REFRESH_TOKEN_EXPIRE_DAYS:-30}"
+      CSRF_SECRET: "${CSRF_SECRET:-change-this-csrf-secret-in-coolify}"
+      BCRYPT_ROUNDS: "${BCRYPT_ROUNDS:-12}"
+      CORS_ORIGINS: "${CORS_ORIGINS:-*}"
+      DASHSCOPE_API_KEY: "${DASHSCOPE_API_KEY:-}"
+      DASHSCOPE_ENABLED: "${DASHSCOPE_ENABLED:-false}"
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com}"
+      DEEPSEEK_ENABLED: "${DEEPSEEK_ENABLED:-false}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_ENABLED: "${OPENAI_ENABLED:-false}"
+      QIANFAN_API_KEY: "${QIANFAN_API_KEY:-}"
+      QIANFAN_ENABLED: "${QIANFAN_ENABLED:-false}"
+      GOOGLE_API_KEY: "${GOOGLE_API_KEY:-}"
+      GOOGLE_ENABLED: "${GOOGLE_ENABLED:-false}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      ANTHROPIC_ENABLED: "${ANTHROPIC_ENABLED:-false}"
+      BAIDU_API_KEY: "${BAIDU_API_KEY:-}"
+      BAIDU_SECRET_KEY: "${BAIDU_SECRET_KEY:-}"
+      BAIDU_ENABLED: "${BAIDU_ENABLED:-false}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+      OPENROUTER_ENABLED: "${OPENROUTER_ENABLED:-false}"
+      AIHUBMIX_API_KEY: "${AIHUBMIX_API_KEY:-}"
+      AIHUBMIX_BASE_URL: "${AIHUBMIX_BASE_URL:-https://aihubmix.com/v1}"
+      AIHUBMIX_ENABLED: "${AIHUBMIX_ENABLED:-false}"
+      AI302_API_KEY: "${AI302_API_KEY:-}"
+      AI302_ENABLED: "${AI302_ENABLED:-false}"
+      SILICONFLOW_API_KEY: "${SILICONFLOW_API_KEY:-}"
+      ONEAPI_API_KEY: "${ONEAPI_API_KEY:-}"
+      ONEAPI_BASE_URL: "${ONEAPI_BASE_URL:-http://localhost:3000/v1}"
+      CUSTOM_OPENAI_API_KEY: "${CUSTOM_OPENAI_API_KEY:-}"
+      TUSHARE_TOKEN: "${TUSHARE_TOKEN:-}"
+      TUSHARE_ENABLED: "${TUSHARE_ENABLED:-false}"
+      DEFAULT_CHINA_DATA_SOURCE: "${DEFAULT_CHINA_DATA_SOURCE:-akshare}"
+      TUSHARE_TIER: "${TUSHARE_TIER:-standard}"
+      TUSHARE_RATE_LIMIT_SAFETY_MARGIN: "${TUSHARE_RATE_LIMIT_SAFETY_MARGIN:-0.8}"
+      AKSHARE_ENABLED: "${AKSHARE_ENABLED:-true}"
+      BAOSTOCK_ENABLED: "${BAOSTOCK_ENABLED:-true}"
+      FINNHUB_API_KEY: "${FINNHUB_API_KEY:-}"
+      FINNHUB_ENABLED: "${FINNHUB_ENABLED:-false}"
+      ONLINE_TOOLS_ENABLED: "${ONLINE_TOOLS_ENABLED:-false}"
+      ONLINE_NEWS_ENABLED: "${ONLINE_NEWS_ENABLED:-true}"
+      REALTIME_DATA_ENABLED: "${REALTIME_DATA_ENABLED:-true}"
+      REDDIT_CLIENT_ID: "${REDDIT_CLIENT_ID:-}"
+      REDDIT_CLIENT_SECRET: "${REDDIT_CLIENT_SECRET:-}"
+      REDDIT_USER_AGENT: "${REDDIT_USER_AGENT:-TradingAgents-CN/1.0}"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tradingagents-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    image: hsliup/tradingagents-frontend:v1.0.1
+    restart: unless-stopped
+    expose:
+      - "80"
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      VITE_API_BASE_URL: "/api"
+    depends_on:
+      - backend
+    networks:
+      - tradingagents-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    expose:
+      - "80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - tradingagents-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  tradingagents_mongodb_data:
+    driver: local
+  tradingagents_redis_data:
+    driver: local
+  tradingagents_logs:
+    driver: local
+  tradingagents_data:
+    driver: local
+
+networks:
+  tradingagents-network:
+    driver: bridge
