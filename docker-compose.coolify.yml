@@ -54,11 +54,15 @@ services:
       TRADINGAGENTS_LOG_LEVEL: "${TRADINGAGENTS_LOG_LEVEL:-INFO}"
       TRADINGAGENTS_LOG_DIR: "/app/logs"
       TRADINGAGENTS_LOG_FILE: "/app/logs/tradingagents.log"
+      DEBUG: "${DEBUG:-false}"
       MONGODB_HOST: "mongodb"
       MONGODB_PORT: "27017"
       MONGODB_USERNAME: "${MONGODB_USERNAME:-admin}"
       MONGODB_PASSWORD: "${MONGODB_PASSWORD:-tradingagents123}"
       MONGODB_DATABASE: "${MONGODB_DATABASE:-tradingagentscn}"
+      MONGODB_DATABASE_NAME: "${MONGODB_DATABASE:-tradingagentscn}"
+      MONGO_DB: "${MONGODB_DATABASE:-tradingagentscn}"
+      MONGODB_DATABASE_SCOPE: "${MONGODB_DATABASE_SCOPE:-explicit}"
       MONGODB_AUTH_SOURCE: "${MONGODB_AUTH_SOURCE:-admin}"
       MONGODB_URL: "mongodb://${MONGODB_USERNAME:-admin}:${MONGODB_PASSWORD:-tradingagents123}@mongodb:27017/${MONGODB_DATABASE:-tradingagentscn}?authSource=${MONGODB_AUTH_SOURCE:-admin}"
       MONGODB_CONNECTION_STRING: "mongodb://${MONGODB_USERNAME:-admin}:${MONGODB_PASSWORD:-tradingagents123}@mongodb:27017/${MONGODB_DATABASE:-tradingagentscn}?authSource=${MONGODB_AUTH_SOURCE:-admin}"
@@ -117,6 +121,8 @@ services:
       REDDIT_CLIENT_SECRET: "${REDDIT_CLIENT_SECRET:-}"
       REDDIT_USER_AGENT: "${REDDIT_USER_AGENT:-TradingAgents-CN/1.0}"
     depends_on:
+      admin-init:
+        condition: service_completed_successfully
       mongodb:
         condition: service_healthy
       redis:
@@ -129,6 +135,103 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  admin-init:
+    image: hsliup/tradingagents-backend:v1.0.0-preview
+    restart: "no"
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      DEBUG: "${DEBUG:-false}"
+      MONGODB_HOST: "mongodb"
+      MONGODB_PORT: "27017"
+      MONGODB_USERNAME: "${MONGODB_USERNAME:-admin}"
+      MONGODB_PASSWORD: "${MONGODB_PASSWORD:-tradingagents123}"
+      MONGODB_DATABASE: "${MONGODB_DATABASE:-tradingagentscn}"
+      MONGODB_DATABASE_NAME: "${MONGODB_DATABASE:-tradingagentscn}"
+      MONGO_DB: "${MONGODB_DATABASE:-tradingagentscn}"
+      MONGODB_DATABASE_SCOPE: "${MONGODB_DATABASE_SCOPE:-explicit}"
+      MONGODB_AUTH_SOURCE: "${MONGODB_AUTH_SOURCE:-admin}"
+      MONGODB_URL: "mongodb://${MONGODB_USERNAME:-admin}:${MONGODB_PASSWORD:-tradingagents123}@mongodb:27017/${MONGODB_DATABASE:-tradingagentscn}?authSource=${MONGODB_AUTH_SOURCE:-admin}"
+      MONGODB_CONNECTION_STRING: "mongodb://${MONGODB_USERNAME:-admin}:${MONGODB_PASSWORD:-tradingagents123}@mongodb:27017/${MONGODB_DATABASE:-tradingagentscn}?authSource=${MONGODB_AUTH_SOURCE:-admin}"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-tradingagents123}"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-tradingagents123}@redis:6379/0"
+      DOCKER_CONTAINER: "true"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin123}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@tradingagents.cn}"
+      ADMIN_RESET_PASSWORD_ON_DEPLOY: "${ADMIN_RESET_PASSWORD_ON_DEPLOY:-false}"
+    command:
+      - /bin/sh
+      - -c
+      - |
+        python - <<'PY'
+        import asyncio
+        import os
+        import sys
+        from datetime import datetime
+
+        async def main():
+            from app.services.user_service import user_service
+
+            username = os.getenv("ADMIN_USERNAME", "admin")
+            password = os.getenv("ADMIN_PASSWORD", "admin123")
+            email = os.getenv("ADMIN_EMAIL", "admin@tradingagents.cn")
+            reset_on_deploy = os.getenv("ADMIN_RESET_PASSWORD_ON_DEPLOY", "false").lower() in {"1", "true", "yes", "on"}
+
+            now = datetime.utcnow()
+            existing = user_service.users_collection.find_one({"username": username})
+            admin_fields = {
+                "email": email,
+                "is_active": True,
+                "is_verified": True,
+                "is_admin": True,
+                "updated_at": now,
+            }
+
+            if existing:
+                update_doc = {"$$set": admin_fields}
+                if reset_on_deploy or not existing.get("hashed_password"):
+                    update_doc["$$set"]["hashed_password"] = user_service.hash_password(password)
+                result = user_service.users_collection.update_one({"username": username}, update_doc)
+                if result.matched_count != 1:
+                    raise RuntimeError("failed to update admin user")
+            else:
+                admin_doc = {
+                    "username": username,
+                    "hashed_password": user_service.hash_password(password),
+                    "created_at": now,
+                    "last_login": None,
+                    "preferences": {},
+                    "daily_quota": 10000,
+                    "concurrent_limit": 10,
+                    "total_analyses": 0,
+                    "successful_analyses": 0,
+                    "failed_analyses": 0,
+                    "favorite_stocks": [],
+                    **admin_fields,
+                }
+                result = user_service.users_collection.insert_one(admin_doc)
+                if not result.inserted_id:
+                    raise RuntimeError("failed to create admin user")
+
+            user_service.close()
+            print(f"Admin user ready: {username}")
+
+        try:
+            asyncio.run(main())
+        except Exception as exc:
+            print(f"Admin init failed: {exc}", file=sys.stderr)
+            raise
+        PY
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tradingagents-network
 
   frontend:
     image: hsliup/tradingagents-frontend:v1.0.0-preview
